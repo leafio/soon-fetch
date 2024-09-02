@@ -1,0 +1,41 @@
+{
+  "name": "soon-fetch",
+  "version": "0.0.1",
+  "description": "a lightweight request library based on fetch with TS prompt",
+  "homepage": "https://github.com/leafio/soon-fetch",
+  "main": "./dist/index.cjs.js",
+  "module": "/dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "./dist/*"
+  ],
+  "scripts": {
+    "build:types": "tsc",
+    "build": "rollup --config",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "request",
+    "fetch",
+    "lightweight",
+    "timeout",
+    "http",
+    "axios"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.22.9",
+    "@babel/preset-env": "^7.22.9",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-node-resolve": "^15.1.0",
+    "@rollup/plugin-terser": "^0.4.3",
+    "rollup": "^3.26.3",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-dts": "^5.3.0",
+    "rollup-plugin-typescript": "^1.0.1",
+    "tslib": "^2.6.0",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {}
+}
