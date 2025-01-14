@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <script>
+      fetch("/api/test/null", { method: "post", body: null });
+      fetch("/api/test/undefined", { method: "post", body: undefined });
+      fetch("/api/test/1", { method: "post", body: 1 });
+      fetch("/api/test/string", { method: "post", body: "string" });
+      fetch("/api/test/object", { method: "post", body: { name: "name" } });
+      const formData = new FormData();
+      formData.append("name", "name");
+      fetch("/api/test/formData", {
+        method: "post",
+        body: formData,
+      });
+      fetch("/api/test/url", {
+        method: "post",
+        body: new URLSearchParams({ list: "name" }),
+      });
+      const file = new File(["foo"], "foo.txt", {
+        type: "text/plain",
+      });
+      fetch("/api/test/file", {
+        method: "post",
+        body: file,
+      });
+      fetch("/api/test/blob", {
+        method: "post",
+        body: new Blob(),
+      });
+    </script>
+  </body>
+</html>

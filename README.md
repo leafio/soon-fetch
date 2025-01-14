@@ -1,8 +1,10 @@
-[English](#soon-fetch-is-a-lightweight-http-request-library-based-on-vanilla-fetch-with-typescript) | [中文](#soon-fetch-是用-ts-对原生-fetch-的轻量封装) | [Installation](#安装-installation)
+[English](#soon-fetch) | [中文](#soon-fetch-1) | [Installation](#安装-installation)
 
 <!-- omit in toc -->
 
-##### `soon-fetch` is a lightweight http request library based on vanilla fetch with Typescript
+### `soon-fetch`
+
+**A lightweight http request lib , alternative to axios**
 
 > - 🌐 automatic parse restful api url parameters
 > - ⭐ rapid define a request api
@@ -12,73 +14,46 @@
 > - 💡 smart type tips with Typescript
 
 - [Example](#example)
-- [API Reference](#api-reference)
-  - [Create Instance](#create-instance)
-  - [Request](#request)
-  - [Response](#response)
+
 - [Features](#features)
   - [Shortcut](#shortcut)
   - [Restful Url Params](#restful-url-params)
   - [Timeout](#timeout)
   - [Rapid Define APIs](#rapid-define-apis)
+- [API](#api)
 - [Support Me](#support-me)
 
 ### Example
-> [github: soon-admin-vue3 ](https://github.com/leafio/soon-admin-vue3)
+
+> [github: soon-admin-vue3 ](https://github.com/leafio/soon-admin-vue3)  
+> [github: soon-admin-react-nextjs ](https://github.com/leafio/soon-admin-react-nextjs)
 
 ```typescript
-export const soon = createSoon({
-  baseURL: baseURL,
-  defaultOptions:()=> ({
-    timeout: 20 * 1000,
-  }),
-  beforeRequest: (options) => {
-    options.headers.append(
-      "Authorization",
-      localStorage.getItem("token") ?? ""
-    );
-  },
-  afterResponse: async (result,  resolve, reject ) => {
-    const res = result.response;
-    if (res) {
-      if (res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (!contentType?.includes("json")) {
-          resolve(res);
-        } else {
-          const body = await res.json();
-          if (body.code === 0) {
-            resolve(body.data);
-          } else {
-            console.log(res);
-            toast.error(body.err);
-            reject(res.body);
-          }
-        }
-      } else if (res.status === 401) {
-        localStorage.removeItem("token");
-        location.href = "/login";
-      }
-      toast.error(res.statusText);
-      reject();
-    } else if (result.isTimeout) {
-      toast.error("Timeout");
-    } else if (result.error) {
-      toast.error(result.error);
-    }
-  },
-});
+import { createSoon, parseUrlOptions, type SoonOptions } from "soon-fetch";
+
+const request = <T>(url: string, options?: SoonOptions) => {
+  const [_url, _options] = parseUrlOptions({
+    url,
+    options,
+    baseURL: "/api",
+    baseOptions: {
+      timeout: 20 * 1000,
+      headers: { Authorization: localStorage.getItem("token") ?? "" },
+    },
+  });
+
+  return fetch(_url, _options).then((res) => res.json() as T);
+};
+
+const soon = createSoon(request);
 
 /** GET */
-soon.get("/user?id=123").then((data) => console.log(data));
-soon.get("/user", { query: { id: 123 } }).then((data) => console.log(data));
-soon
-  .get("/user/:id", { params: { id: 123 } })
-  .then((data) => console.log(data));
+soon.get("/user?id=123");
+soon.get("/user", { query: { id: 123 } });
+soon.get("/user/:id", { params: { id: 123 } });
+
 /** POST */
-soon
-  .post("/login", { body: { username: "admin", password: "123456" } })
-  .then((data) => console.log(data));
+soon.post("/login", { body: { username: "admin", password: "123456" } });
 
 /**Define API */
 export const login = soon
@@ -89,98 +64,6 @@ login({ username: "admin", password: "123" }).then((res) => {
   localStorage.setItem("token", res.token);
 });
 ```
-
-### API Reference
-
-##### Create Instance
-
-```typescript
-import { createSoon } from "soon";
-
-declare function createSoon<Options extends SoonOptions = SoonOptions>(
-  soonInit?: SoonInit<Options>
-);
-
-// options would overwrite by order : defaultOptions ,request(url,options),beforeRequest(options)
-export type SoonInit<Options> = {
-  //**url prefix */
-  baseURL?: string;
-  /**the fetch http options */
-  defaultOptions?:()=> Options;
-  /** can modify the fetch options before been handled*/
-  beforeRequest?: (options: Options & { headers: Headers }) => void;
-  /** can modify the response after fetched and promise resolved */
-  afterResponse?: (result: SoonResult<Options>, resolve: (value: any) => void, reject: (reason?: any) => void) => Promise<void>;
-};
-```
-
-##### Request
-
-```typescript
-soon.request(url[,options])
-```
-
-Request data can choose `query` `params` `body` for easy specification
-
-```typescript
-type SoonOptions = {
-  /** url search params like  `api/info?name=yes`  {name:"yes"} passed here*/
-  query?:
-    | Record<
-        string,
-        string | number | boolean | string[] | number[] | null | undefined
-      >
-    | URLSearchParams;
-  /** url rest params like `api/info/:id`  {id:1} passed here*/
-  params?: Record<string, string | number>;
-  /** unit ms */
-  timeout?: number;
-  /*****   vanilla fetch props  *****/
-  //body can pass json without stringified
-  body?: any;
-  signal?: AbortSignal;
-  method?:
-    | "get"
-    | "GET"
-    | "delete"
-    | "DELETE"
-    | "head"
-    | "HEAD"
-    | "options"
-    | "OPTIONS"
-    | "post"
-    | "POST"
-    | "put"
-    | "PUT"
-    | "patch"
-    | "PATCH"
-    | "purge"
-    | "PURGE"
-    | "link"
-    | "LINK"
-    | "unlink"
-    | "UNLINK";
-  mode?: "cors" | "no-cors" | "same-origin";
-  cache?: "default" | "no-cache" | "reload" | "force-cache" | "only-if-cached";
-  credentials?: "include" | "same-origin" | "omit";
-  headers?: Headers;
-  redirect?: "manual" | "follow" | "error";
-  referrerPolicy?:
-    | "no-referrer"
-    | "no-referrer-when-downgrade"
-    | "origin"
-    | "origin-when-cross-origin"
-    | "same-origin"
-    | "strict-origin"
-    | "strict-origin-when-cross-origin"
-    | "unsafe-url";
-  integrity?: string;
-};
-```
-
-##### Response
-
-Default : return raw fetch Response , you can customize it in afterResponse params of createSoon
 
 ### Features
 
@@ -224,9 +107,8 @@ soon.get(url, { timeout: 1000 * 20 });
   //define an api
  export const getUserInfo=soon.API('/user/:id').GET()
   //then use in any where
-  getUserInfo({id:2})
-    .then(res=>console.log(res))
-    .catch(err=>console.log(err))
+  getUserInfo({id:2}).then(res=>console.log(res))
+
 
   //with typescript,
  export const login=soon.API('/user/login')
@@ -237,18 +119,67 @@ soon.get(url, { timeout: 1000 * 20 });
   })
 ```
 
+### API
+
+#### parseUrlOptions
+
+`parseUrlOptions` source code:
+
+```ts
+function parseUrlOptions<Options extends SoonOptions>(urlOptions: {
+  url: string;
+  options?: Options;
+  baseURL?: string;
+  baseOptions?: Options;
+}) {
+  const { url, options, baseURL, baseOptions } = urlOptions;
+  //override baseOptions
+  const _options = { ...baseOptions, ...options };
+
+  //signal  merge signals by AbortSignal.any
+  _options.signal = mergeSignals(
+    [baseOptions?.signal, options?.signal],
+    _options.timeout
+  );
+
+  //url  handled with baseURL , options.query , options.params
+  const _url = mergeUrl(url, { ..._options, baseURL });
+
+  //body  auto stringify json body
+  let _body = options?.body;
+  let is_body_json = isBodyJson(_body);
+  _options.body = is_body_json ? JSON.stringify(_body) : _body;
+
+  //headers  merge headers , the same-key header would be override by options.headers
+  //if body is json ,then add header "Content-Type": "application/json" }
+  const headers = mergeHeaders(
+    baseOptions?.headers,
+    options?.headers,
+    is_body_json ? { "Content-Type": "application/json" } : undefined
+  );
+  _options.headers = headers;
+
+  return [_url, _options as Options & { headers: Headers }] as const;
+}
+```
+
+You can customize your own parse function with the functions exported below:
+`mergeHeaders`, `mergeSignals`, `mergeUrl`, `isBodyJson`
+
 ### Support Me
 
-If you like this library , you can give a **start** on github.  
-Email: leafnote@outlook.com
+If you like this library , you can give a **star** on github.  
+GitHub: https://github.com/leafio/soon-fetch
 
-> I'm looking for a frontend job in Shanghai , hope someone could find a offer for me.
+> Email: leafnote@outlook.com
 
-[English](#soon-fetch-is-a-lightweight-http-request-library-based-on-vanilla-fetch-with-typescript) | [中文](#soon-fetch-是用-ts-对原生-fetch-的轻量封装) | [Installation](#安装-installation)
+[English](#soon-fetch) | [中文](#soon-fetch-1) | [Installation](#安装-installation)
 
 <!-- omit in toc -->
 
-##### soon-fetch 是用 ts 对原生 fetch 的轻量封装
+#### soon-fetch
+
+**极轻量的请求库，不到 3K**
 
 > - 🌐 自动解析 rest Url 的参数
 > - ⭐ 快捷定义请求 api
@@ -258,74 +189,46 @@ Email: leafnote@outlook.com
 > - 💡 用 typescript 有智能类型提醒
 
 - [示例](#示例)
-- [API 参考](#api参考)
-
-  - [创建实例](#创建实例)
-  - [请求](#请求)
-  - [响应](#响应)
 
 - [特别功能](#特别功能)
+
   - [快捷方法](#快捷方法)
   - [Restful Url 参数自动处理](#restful-url-参数自动处理)
   - [超时](#超时)
   - [快速定义 API](#快速定义-api)
+
+- [API](#api-1)
 - [支持一下](#支持一下)
 
 ### 示例
-> [github: soon-admin-vue3 ](https://github.com/leafio/soon-admin-vue3)
+
+> [github: soon-admin-vue3 ](https://github.com/leafio/soon-admin-vue3)  
+> [github: soon-admin-react-nextjs ](https://github.com/leafio/soon-admin-react-nextjs)
+
 ```typescript
-export const soon = createSoon<SoonOptions>({
-  baseURL: baseURL,
-  defaultOptions:()=> ({
-    timeout: 20 * 1000,
-  }),
-  beforeRequest: (options) => {
-    options.headers.append(
-      "Authorization",
-      localStorage.getItem("token") ?? ""
-    );
-  },
-  afterResponse: async (result,  resolve, reject ) => {
-    const res = result.response;
-    if (res) {
-      if (res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (!contentType?.includes("json")) {
-          resolve(res);
-        } else {
-          const body = await res.json();
-          if (body.code === 0) {
-            resolve(body.data);
-          } else {
-            console.log(res);
-            toast.error(body.err);
-            reject(res.body);
-          }
-        }
-      } else if (res.status === 401) {
-        localStorage.removeItem("token");
-        location.href = "/login";
-      }
-      toast.error(res.statusText);
-      reject();
-    } else if (result.isTimeout) {
-      toast.error("请求超时");
-    } else if (result.error) {
-      toast.error(result.error);
-    }
-  },
-});
+const request = <T>(url: string, options?: SoonOptions) => {
+  const [_url, _options] = parseUrlOptions({
+    url,
+    options,
+    baseURL: "/api",
+    baseOptions: {
+      timeout: 20 * 1000,
+      headers: { Authorization: localStorage.getItem("token") ?? "" },
+    },
+  });
+
+  return fetch(_url, _options).then((res) => res.json() as T);
+};
+
+const soon = createSoon(request);
 
 /** GET */
-soon.get("/user?id=123").then((data) => console.log(data));
-soon.get("/user", { query: { id: 123 } }).then((data) => console.log(data));
-soon
-  .get("/user/:id", { params: { id: 123 } })
-  .then((data) => console.log(data));
+soon.get("/user?id=123");
+soon.get("/user", { query: { id: 123 } });
+soon.get("/user/:id", { params: { id: 123 } });
+
 /** POST */
-soon
-  .post("/login", { body: { username: "admin", password: "123456" } })
-  .then((data) => console.log(data));
+soon.post("/login", { body: { username: "admin", password: "123456" } });
 
 /**定义 API */
 export const login = soon
@@ -336,108 +239,6 @@ login({ username: "admin", password: "123" }).then((res) => {
   localStorage.setItem("token", res.token);
 });
 ```
-
-### API 参考
-
-##### 创建实例
-
-```typescript
-import { createSoon } from "soon";
-
-declare function createSoon<Options extends SoonOptions = SoonOptions>(
-  soonInit?: SoonInit<Options>
-);
-
-// options 依次被覆盖 defaultOptions ,request(url,options),beforeRequest(options)
-export type SoonInit<Options> = {
-  baseURL?: string;
-  //默认的options
-  defaultOptions?:()=> Options;
-  //在请求前对options的处理
-  beforeRequest?: (options: Options & { headers: Headers }) => void;
-  //在请求后对Response的处理
-  afterResponse?: (result: SoonResult<Options>, resolve: (value: any) => void, reject: (reason?: any) => void) => Promise<void>;
-};
-```
-
-```typescript
-export type SoonResult<Options> = {
-  isTimeout: boolean;
-  request: Request; //原生fetch的Request
-  error?: any;
-  response?: Response; //原生fetch的Response
-  options: Options; //请求传递来的options
-};
-```
-
-##### 请求
-
-```typescript
-soon.request(url[,options])
-```
-
-请求数据可以选择 _`query`_ _`params`_ _`body`_ ，易于传递。
-
-```typescript
-type SoonOptions = {
-  /** url ？后的参数  `api/info?name=yes` 传递 {name:"yes"}*/
-  query?:
-    | Record<
-        string,
-        string | number | boolean | string[] | number[] | null | undefined
-      >
-    | URLSearchParams;
-  /** rest风格url的请求参数 `api/info/:id` 传递 {id:1}*/
-  params?: Record<string, string | number>;
-  /** unit 毫秒 */
-  timeout?: number;
-
-  /*** 原生fetch 参数*/
-  //可直接传递JSON而不必stringified
-  body?: any;
-  signal?: AbortSignal;
-  method?:
-    | "get"
-    | "GET"
-    | "delete"
-    | "DELETE"
-    | "head"
-    | "HEAD"
-    | "options"
-    | "OPTIONS"
-    | "post"
-    | "POST"
-    | "put"
-    | "PUT"
-    | "patch"
-    | "PATCH"
-    | "purge"
-    | "PURGE"
-    | "link"
-    | "LINK"
-    | "unlink"
-    | "UNLINK";
-  mode?: "cors" | "no-cors" | "same-origin";
-  cache?: "default" | "no-cache" | "reload" | "force-cache" | "only-if-cached";
-  credentials?: "include" | "same-origin" | "omit";
-  headers?: Headers;
-  redirect?: "manual" | "follow" | "error";
-  referrerPolicy?:
-    | "no-referrer"
-    | "no-referrer-when-downgrade"
-    | "origin"
-    | "origin-when-cross-origin"
-    | "same-origin"
-    | "strict-origin"
-    | "strict-origin-when-cross-origin"
-    | "unsafe-url";
-  integrity?: string;
-};
-```
-
-##### 响应
-
-默认为原生 fetch 的 Response ，可在 createSoon 的 afterResponse 里自定义处理 Response
 
 ### 特别功能
 
@@ -481,9 +282,7 @@ soon.get(url, { timeout: 1000 * 20 });
   //定义一个api
  export const getUserInfo=soon.API('/user/:id').GET()
   //使用
-  getUserInfo({id:2})
-    .then(res=>console.log(res))
-    .catch(err=>console.log(err))
+  getUserInfo({id:2}).then(res=>console.log(res))
 
   //用typescript,
  export const login=soon.API('/user/login')
@@ -493,15 +292,62 @@ soon.get(url, { timeout: 1000 * 20 });
     localStorage.setItem('token', res.token);
   })
 ```
+
+### API
+
+#### parseUrlOptions
+
+`parseUrlOptions` 源码如下:
+
+```ts
+function parseUrlOptions<Options extends SoonOptions>(urlOptions: {
+  url: string;
+  options?: Options;
+  baseURL?: string;
+  baseOptions?: Options;
+}) {
+  const { url, options, baseURL, baseOptions } = urlOptions;
+  //override baseOptions
+  const _options = { ...baseOptions, ...options };
+
+  //signal  merge signals by AbortSignal.any
+  _options.signal = mergeSignals(
+    [baseOptions?.signal, options?.signal],
+    _options.timeout
+  );
+
+  //url  handled with baseURL , options.query , options.params
+  const _url = mergeUrl(url, { ..._options, baseURL });
+
+  //body  auto stringify json body
+  let _body = options?.body;
+  let is_body_json = isBodyJson(_body);
+  _options.body = is_body_json ? JSON.stringify(_body) : _body;
+
+  //headers  merge headers , the same-key header would be override by options.headers
+  //if body is json ,then add header "Content-Type": "application/json" }
+  const headers = mergeHeaders(
+    baseOptions?.headers,
+    options?.headers,
+    is_body_json ? { "Content-Type": "application/json" } : undefined
+  );
+  _options.headers = headers;
+
+  return [_url, _options as Options & { headers: Headers }] as const;
+}
+```
+
+如有特殊需要，可以根据下方的函数定制你自己的解析函数来替代 `parseUrlOptions`:
+`mergeHeaders`, `mergeSignals`, `mergeUrl`, `isBodyJson`
+
 ### 支持一下
 
-喜欢soon-fetch的话 , 在github上给个 **star** 吧. 
-Email: leafnote@outlook.com
+喜欢 soon-fetch 的话 , 在 github 上给个 **star** 吧.
+GitHub: https://github.com/leafio/soon-fetch
 
-> 我目前在找前端的工作，位置上海。有岗位机会的话，可以联系我。
+> Email: leafnote@outlook.com
 
-
-[English](#soon-is-a-lightweight-http-request-library-based-on-vanilla-fetch-with-typescript) | [中文](#soon-是用-ts-对原生-fetch-的轻量封装)
+[English](#soon-fetch) | [中文](#soon-fetch-1) | [Installation](#安装-installation)
 
 <!-- omit in toc -->
 
