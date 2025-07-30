@@ -1,19 +1,12 @@
-import { createShortMethods, createSoon, parseUrlOptions } from "."
+import { createSoon } from "../dist";
 
+const soon = createSoon(
+    () => ({}),
+    ({ parsed }) =>
+        () =>
+            fetch(parsed.url, parsed.options).then((res) => res.json())
+);
+const fun = soon.GET("/test").Send();
 
-const soon0 = createSoon((url, options) =>
-    fetch(...parseUrlOptions({ url, options }))
-)
-const fun = soon0.API("/test").GET()
-soon0.get("/")
-
-const soon2 = createSoon((url, options2) =>
-    fetch(...parseUrlOptions({ url, options: options2 })).then((res) => res.json())
-)
-const fun2 = soon2.API("/test/:id").GET()
-const zz=soon2.get("/")
-
-
-
-
-
+const fun2 = soon.POST("/test/:id").Send();
+const zz = soon.get("/");

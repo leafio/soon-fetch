@@ -2,26 +2,30 @@
 
 <!-- omit in toc -->
 
-### `soon-fetch`
+### soon-fetch
 
-**A lightweight http request lib , alternative to axios**
+**A lightweight http request lib , alternative to axios with timeout, request reusing, race, response cache ...**
 
 > - 🌐 automatic parse restful api url parameters
 > - ⭐ rapid define a request api
 > - ⌛ timeout disconnect
-> - 🔤 automatic parse or serialization of JSON
-> - 📏 .min size less than **3K**, smaller after zip
+> - 📦 request reusing
+> - 🚀 request race
+> - 📝 response cache
+> - 🔤 automatic serialization of JSON
+> - 📏 .min size less than **5K**, smaller after zip
 > - 💡 smart type tips with Typescript
 
 - [Example](#example)
-
 - [Features](#features)
   - [Shortcut](#shortcut)
   - [Restful Url Params](#restful-url-params)
   - [Timeout](#timeout)
+  - [Share pending request](#share-pending-request)
+  - [Response cache](#response-cache)
+  - [Request race](#request-race)
   - [Rapid Define APIs](#rapid-define-apis)
 - [API](#api)
-- [Support Me](#support-me)
 
 ### Example
 
@@ -29,23 +33,31 @@
 > [github: soon-admin-react-nextjs ](https://github.com/leafio/soon-admin-react-nextjs)
 
 ```typescript
-import { createSoon, parseUrlOptions, type SoonOptions } from "soon-fetch";
+import { createSoon } from "soon-fetch";
 
-const request = <T>(url: string, options?: SoonOptions) => {
-  const [_url, _options] = parseUrlOptions({
-    url,
-    options,
-    baseURL: "/api",
-    baseOptions: {
-      timeout: 20 * 1000,
-      headers: { Authorization: localStorage.getItem("token") ?? "" },
-    },
-  });
-
-  return fetch(_url, _options).then((res) => res.json() as T);
-};
-
-const soon = createSoon(request);
+const soon = createSoon(
+  (url, options) => {
+    const isGet = !options?.method || options?.method.toLocaleLowerCase() === "get"
+    return {
+      baseURL: '/api',
+      baseOptions: {
+        timeout: 20 * 1000,
+        headers: new Headers({
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        }),
+        share: isGet ? true : false,
+        staleTime: isGet ? 2 * 1000 : 0,
+      },
+    }
+  },
+  ({ parsed }) => {
+    return <T>() => {
+      return fetch(parsed.url, parsed.options).then((res) =>
+        res.json()
+      ) as Promise<T>;
+    };
+  }
+);
 
 /** GET */
 soon.get("/user?id=123");
@@ -57,9 +69,10 @@ soon.post("/login", { body: { username: "admin", password: "123456" } });
 
 /**Define API */
 export const login = soon
-  .API("/user/login")
-  .POST<{ username: string; password: string }, { token: string }>();
-
+  .POST("/user/login")
+  .Body<{ username: string; password: string }>()
+  .Send<{ token: string }>();
+//the develop tools will have type tips for request and response
 login({ username: "admin", password: "123" }).then((res) => {
   localStorage.setItem("token", res.token);
 });
@@ -97,81 +110,102 @@ soon.get("/api/:job/:year", { params: { job: "engineer", year: 5 } });
 soon.get(url, { timeout: 1000 * 20 });
 ```
 
+##### Share pending request
+
+If a request is made again before the first completes, will reuse the first request instead of making a new request.
+
+```ts
+soon.get(url, { share: true });
+```
+
+##### Response cache
+
+A cached response will be returned if the request is made again within the specified time.
+
+```ts
+soon.get(url, { staleTime: 1000 * 60 * 5 });
+```
+
+##### Request race
+
+‌If a second request is made before the first completes, abort the first to avoid race conditions from out-of-order responses.
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+
+type User = { name: string; job: string };
+const api = soon.GET("/api/users").Query<{ page: number }>().Send<User[]>();
+export default function App() {
+  const refAbort = useRef([]);
+  const [list, setList] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    api({ page }, { aborts: refAbort.current })
+      .then(setList)
+      .catch(console.log);
+  }, [page]);
+  return (
+    <div>
+      <button onClick={() => setPage((pre) => pre + 1)}>next</button>
+      <div>
+        {list.map((item) => (
+          <div key={item.name}>{item.name}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
 ##### Rapid Define APIs
 
 ```typescript
-  //can be GET POST PATCH PUT DELETE
-  //GET data=>query,other method data=>body
-  soon.API(url:string).POST<RequestType,ResponseType>()
+//can be GET POST PATCH PUT DELETE
+  soon.GET(url:string).Query<Query>().Send<Response>()
+  soon.POST(url:string).Body<Body>().Send<Response>()
+//define an api
+export const getUserInfo = soon.GET("/user/:id").Send();
+//then use in any where
+getUserInfo({ id: 2 }).then((res) => console.log(res));
 
-  //define an api
- export const getUserInfo=soon.API('/user/:id').GET()
-  //then use in any where
-  getUserInfo({id:2}).then(res=>console.log(res))
-
-
-  //with typescript,
- export const login=soon.API('/user/login')
-    .POST<{username:string,password:string},{token:string}>()
- //the develop tools will have type tips for request and response
-  login({username:'admin',password:'123'}).then(res=>{
-    localStorage.setItem('token', res.token);
-  })
+//with typescript,
+export const login = soon
+  .POST("/user/login")
+  .Body<{ username: string; password: string }>()
+  .Send<{ token: string }>();
+//the develop tools will have type tips for request and response
+login({ username: "admin", password: "123" }).then((res) => {
+  localStorage.setItem("token", res.token);
+});
 ```
 
 ### API
 
-#### parseUrlOptions
-
-`parseUrlOptions` source code:
+#### SoonOptions
 
 ```ts
-function parseUrlOptions<Options extends SoonOptions>(urlOptions: {
-  url: string;
-  options?: Options;
-  baseURL?: string;
-  baseOptions?: Options;
-}) {
-  const { url, options, baseURL, baseOptions } = urlOptions;
-  //override baseOptions
-  const _options = { ...baseOptions, ...options };
-
-  //signal  merge signals by AbortSignal.any
-  _options.signal = mergeSignals(
-    [baseOptions?.signal, options?.signal],
-    _options.timeout
-  );
-
-  //url  handled with baseURL , options.query , options.params
-  const _url = mergeUrl(url, { ..._options, baseURL });
-
-  //body  auto stringify json body
-  let _body = options?.body;
-  let is_body_json = isBodyJson(_body);
-  _options.body = is_body_json ? JSON.stringify(_body) : _body;
-
-  //headers  merge headers , the same-key header would be override by options.headers
-  //if body is json ,then add header "Content-Type": "application/json" }
-  const headers = mergeHeaders(
-    baseOptions?.headers,
-    options?.headers,
-    is_body_json ? { "Content-Type": "application/json" } : undefined
-  );
-  _options.headers = headers;
-
-  return [_url, _options as Options & { headers: Headers }] as const;
-}
+// function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
+// RequestInit  is fetch's init options
+type SoonOptions = Omit<RequestInit, "body"> & {
+  body?: RequestInit["body"] | object;
+  query?:
+    | Record<
+        string,
+        | string
+        | number
+        | boolean
+        | null
+        | undefined
+        | (string | number | boolean | null | undefined)[]
+      >
+    | URLSearchParams;
+  params?: Record<string, string | number>;
+  timeout?: number;
+  aborts?: AbortController[] | never[];
+  share?: boolean;
+  staleTime?: number;
+};
 ```
-
-You can customize your own parse function with the functions exported below:
-`mergeHeaders`, `mergeSignals`, `mergeUrl`, `isBodyJson`
-
-### Support Me
-
-If you like this library , you can give a **star** on github.  
-GitHub: https://github.com/leafio/soon-fetch
-
-> Email: leafnote@outlook.com
 
 [English](#soon-fetch) | [中文](#soon-fetch-1) | [Installation](#安装-installation)
 
@@ -179,13 +213,16 @@ GitHub: https://github.com/leafio/soon-fetch
 
 #### soon-fetch
 
-**极轻量的请求库，不到 3K**
+**极轻量的请求库，不到 5K**
 
 > - 🌐 自动解析 rest Url 的参数
 > - ⭐ 快捷定义请求 api
 > - ⌛ 超时断开
+> - 📦 请求复用
+> - 🚀 请求竞态
+> - 📝 响应缓存
 > - 🔤 自动处理 JSON
-> - 📏 不到 **3K** , zip 后会更小
+> - 📏 不到 **5K** , zip 后会更小
 > - 💡 用 typescript 有智能类型提醒
 
 - [示例](#示例)
@@ -194,11 +231,13 @@ GitHub: https://github.com/leafio/soon-fetch
 
   - [快捷方法](#快捷方法)
   - [Restful Url 参数自动处理](#restful-url-参数自动处理)
+  - [共享未完成的请求](#共享未完成的请求)
   - [超时](#超时)
+  - [响应缓存](#响应缓存)
+  - [请求竞态](#请求竞态)
   - [快速定义 API](#快速定义-api)
 
 - [API](#api-1)
-- [支持一下](#支持一下)
 
 ### 示例
 
@@ -206,21 +245,29 @@ GitHub: https://github.com/leafio/soon-fetch
 > [github: soon-admin-react-nextjs ](https://github.com/leafio/soon-admin-react-nextjs)
 
 ```typescript
-const request = <T>(url: string, options?: SoonOptions) => {
-  const [_url, _options] = parseUrlOptions({
-    url,
-    options,
-    baseURL: "/api",
-    baseOptions: {
-      timeout: 20 * 1000,
-      headers: { Authorization: localStorage.getItem("token") ?? "" },
-    },
-  });
-
-  return fetch(_url, _options).then((res) => res.json() as T);
-};
-
-const soon = createSoon(request);
+const soon = createSoon(
+  (url, options) => {
+    const isGet = !options?.method || options?.method.toLocaleLowerCase() === "get"
+    return {
+      baseURL: '/api',
+      baseOptions: {
+        timeout: 20 * 1000,
+        headers: new Headers({
+          Authorization: "Bearer " + localStorage.getItem("token"),
+        }),
+        share: isGet ? true : false,
+        staleTime: isGet ? 2 * 1000 : 0,
+      },
+    }
+  },
+  ({ parsed }) => {
+    return <T>() => {
+      return fetch(parsed.url, parsed.options).then((res) =>
+        res.json()
+      ) as Promise<T>;
+    };
+  }
+);
 
 /** GET */
 soon.get("/user?id=123");
@@ -232,9 +279,11 @@ soon.post("/login", { body: { username: "admin", password: "123456" } });
 
 /**定义 API */
 export const login = soon
-  .API("/user/login")
-  .POST<{ username: string; password: string }, { token: string }>();
+  .POST("/user/login")
+  .Body<{ username: string; password: string }>()
+  .Send<{ token: string }>();
 
+//开发工具会有请求和响应的智能提醒
 login({ username: "admin", password: "123" }).then((res) => {
   localStorage.setItem("token", res.token);
 });
@@ -272,21 +321,71 @@ soon.get("/api/:job/:year", { params: { job: "engineer", year: 5 } });
 soon.get(url, { timeout: 1000 * 20 });
 ```
 
+##### 共享未完成的请求
+
+如果在第一个请求完成之前再次发起相同的请求，则会复用第一个请求，而不是发起新的请求。
+
+```ts
+soon.get(url, { share: true });
+```
+
+##### 响应缓存
+
+如果在指定时间内再次发起相同的请求，则会返回缓存的响应。
+
+```ts
+soon.get(url, { staleTime: 1000 * 60 * 5 });
+```
+
+##### 请求竞态
+
+如果在第一个请求完成之前发起第二个请求，则会中止第一个请求，以避免因响应顺序错乱导致的问题。
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+
+type User = { name: string; job: string };
+const api = soon.GET("/api/users").Query<{ page: number }>().Send<User[]>();
+export default function App() {
+  const refAbort = useRef([]);
+  const [list, setList] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    api({ page }, { aborts: refAbort.current })
+      .then(setList)
+      .catch(console.log);
+  }, [page]);
+  return (
+    <div>
+      <button onClick={() => setPage((pre) => pre + 1)}>next</button>
+      <div>
+        {list.map((item) => (
+          <div key={item.name}>{item.name}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
 ##### 快速定义 API
 
-```typescript
+```ts
   //可以是 GET POST PATCH PUT DELETE
   //GET 请求数据传递至query,其他方法请求数据传递至body
-  soon.API(url:string).POST<RequestType,ResponseType>()
+  soon.GET(url:string).Query<Query>().Send<Response>()
+  soon.POST(url:string).Body<Body>().Send<Response>()
 
   //定义一个api
- export const getUserInfo=soon.API('/user/:id').GET()
+ export const getUserInfo=soon.GET('/user/:id').Send()
   //使用
   getUserInfo({id:2}).then(res=>console.log(res))
 
   //用typescript,
- export const login=soon.API('/user/login')
-    .POST<{username:string,password:string},{token:string}>()
+ export const login=soon
+  .POST('/user/login')
+  .Body<{username:string,password:string}>()
+  .Send<{token:string}>()
  //开发工具会有请求和响应的智能提醒
   login({username:'admin',password:'123'}).then(res=>{
     localStorage.setItem('token', res.token);
@@ -295,57 +394,31 @@ soon.get(url, { timeout: 1000 * 20 });
 
 ### API
 
-#### parseUrlOptions
-
-`parseUrlOptions` 源码如下:
+#### SoonOptions
 
 ```ts
-function parseUrlOptions<Options extends SoonOptions>(urlOptions: {
-  url: string;
-  options?: Options;
-  baseURL?: string;
-  baseOptions?: Options;
-}) {
-  const { url, options, baseURL, baseOptions } = urlOptions;
-  //override baseOptions
-  const _options = { ...baseOptions, ...options };
-
-  //signal  merge signals by AbortSignal.any
-  _options.signal = mergeSignals(
-    [baseOptions?.signal, options?.signal],
-    _options.timeout
-  );
-
-  //url  handled with baseURL , options.query , options.params
-  const _url = mergeUrl(url, { ..._options, baseURL });
-
-  //body  auto stringify json body
-  let _body = options?.body;
-  let is_body_json = isBodyJson(_body);
-  _options.body = is_body_json ? JSON.stringify(_body) : _body;
-
-  //headers  merge headers , the same-key header would be override by options.headers
-  //if body is json ,then add header "Content-Type": "application/json" }
-  const headers = mergeHeaders(
-    baseOptions?.headers,
-    options?.headers,
-    is_body_json ? { "Content-Type": "application/json" } : undefined
-  );
-  _options.headers = headers;
-
-  return [_url, _options as Options & { headers: Headers }] as const;
-}
+// function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
+// RequestInit  为原生 fetch 的 init 选项
+type SoonOptions = Omit<RequestInit, "body"> & {
+  body?: RequestInit["body"] | object;
+  query?:
+    | Record<
+        string,
+        | string
+        | number
+        | boolean
+        | null
+        | undefined
+        | (string | number | boolean | null | undefined)[]
+      >
+    | URLSearchParams;
+  params?: Record<string, string | number>;
+  timeout?: number;
+  aborts?: AbortController[] | never[];
+  share?: boolean;
+  staleTime?: number;
+};
 ```
-
-如有特殊需要，可以根据下方的函数定制你自己的解析函数来替代 `parseUrlOptions`:
-`mergeHeaders`, `mergeSignals`, `mergeUrl`, `isBodyJson`
-
-### 支持一下
-
-喜欢 soon-fetch 的话 , 在 github 上给个 **star** 吧.
-GitHub: https://github.com/leafio/soon-fetch
-
-> Email: leafnote@outlook.com
 
 [English](#soon-fetch) | [中文](#soon-fetch-1) | [Installation](#安装-installation)
 

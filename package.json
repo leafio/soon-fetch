@@ -1,7 +1,7 @@
 {
   "name": "soon-fetch",
-  "version": "2.1.0",
-  "description": "a 3Kb request lib alternative to axios",
+  "version": "3.0.1",
+  "description": "a 5Kb request lib alternative to axios with timeout, request reusing, race, response cache ...",
   "homepage": "https://github.com/leafio/soon-fetch",
   "main": "./dist/index.cjs.js",
   "module": "/dist/index.js",
